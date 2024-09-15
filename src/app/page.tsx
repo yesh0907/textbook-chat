@@ -1,101 +1,272 @@
-import Image from "next/image";
+"use client";
+
+import { AttachmentIcon, BotIcon, UserIcon } from "@/components/icons";
+import { useChat } from "ai/react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "sonner";
+import { Markdown } from "@/components/markdown";
+
+const getTextFromDataUrl = (dataUrl: string) => {
+	const base64 = dataUrl.split(",")[1];
+	return window.atob(base64);
+};
+
+function TextFilePreview({ file }: { file: File }) {
+	const [content, setContent] = useState<string>("");
+
+	useEffect(() => {
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			const text = e.target?.result;
+			setContent(typeof text === "string" ? text.slice(0, 100) : "");
+		};
+		reader.readAsText(file);
+	}, [file]);
+
+	return (
+		<div>
+			{content}
+			{content.length >= 100 && "..."}
+		</div>
+	);
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+	const { messages, input, handleSubmit, handleInputChange, isLoading } =
+		useChat({
+			onError: () =>
+				toast.error("You've been rate limited, please try again later!"),
+		});
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+  // add files
+
+	const [files, setFiles] = useState<FileList | null>(null);
+	const inputRef = useRef<HTMLInputElement>(null);
+	const [isDragging, setIsDragging] = useState(false);
+
+	const handlePaste = (event: React.ClipboardEvent) => {
+		const items = event.clipboardData?.items;
+
+		if (items) {
+			const files = Array.from(items)
+				.map((item) => item.getAsFile())
+				.filter((file): file is File => file !== null);
+
+			if (files.length > 0) {
+				const validFiles = files.filter(
+					(file) =>
+						file.type.startsWith("image/") || file.type.startsWith("text/"),
+				);
+
+				if (validFiles.length === files.length) {
+					const dataTransfer = new DataTransfer();
+					// biome-ignore lint/complexity/noForEach: <explanation>
+					validFiles.forEach((file) => dataTransfer.items.add(file));
+					setFiles(dataTransfer.files);
+				} else {
+					toast.error("Only image and text files are allowed");
+				}
+			}
+		}
+	};
+
+	const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+		event.preventDefault();
+		setIsDragging(true);
+	};
+
+	const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+		event.preventDefault();
+		setIsDragging(false);
+	};
+
+	const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+		event.preventDefault();
+		const droppedFiles = event.dataTransfer.files;
+		const droppedFilesArray = Array.from(droppedFiles);
+		if (droppedFilesArray.length > 0) {
+			const validFiles = droppedFilesArray.filter(
+				(file) =>
+					file.type.startsWith("image/") || file.type.startsWith("text/"),
+			);
+
+			if (validFiles.length === droppedFilesArray.length) {
+				const dataTransfer = new DataTransfer();
+				// biome-ignore lint/complexity/noForEach: <explanation>
+				validFiles.forEach((file) => dataTransfer.items.add(file));
+				setFiles(dataTransfer.files);
+			} else {
+				toast.error("Only image and text files are allowed!");
+			}
+
+			setFiles(droppedFiles);
+		}
+		setIsDragging(false);
+	};
+
+	const messagesEndRef = useRef<HTMLDivElement>(null);
+
+	const scrollToBottom = () => {
+		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+	};
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+	useEffect(() => {
+		scrollToBottom();
+	}, [messages]);
+
+	return (
+		<div
+			className="flex flex-row justify-center pb-20 h-dvh bg-white dark:bg-zinc-900"
+			onDragOver={handleDragOver}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
+		>
+			<AnimatePresence>
+				{isDragging && (
+					<motion.div
+						className="fixed pointer-events-none dark:bg-zinc-900/90 h-dvh w-dvw z-10 flex flex-row justify-center items-center flex flex-col gap-1 bg-zinc-100/90"
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						exit={{ opacity: 0 }}
+					>
+						<div>Drag and drop files here</div>
+						<div className="text-sm dark:text-zinc-400 text-zinc-500">
+							{"(images and text)"}
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+
+			<div className="flex flex-col justify-between gap-4">
+				{messages.length > 0 ? (
+					<div className="flex flex-col gap-2 h-full w-dvw items-center overflow-y-scroll">
+						{messages.map((message, index) => (
+							<motion.div
+								key={message.id}
+								className={`flex flex-row gap-2 px-4 w-full md:w-[500px] md:px-0 ${
+									index === 0 ? "pt-20" : ""
+								}`}
+								initial={{ y: 5, opacity: 0 }}
+								animate={{ y: 0, opacity: 1 }}
+							>
+								<div className="size-[24px] flex flex-col justify-center items-center flex-shrink-0 text-zinc-400">
+									{message.role === "assistant" ? <BotIcon /> : <UserIcon />}
+								</div>
+
+								<div className="flex flex-col gap-1">
+									<div className="text-zinc-800 dark:text-zinc-300 flex flex-col gap-4">
+										<Markdown>{message.content}</Markdown>
+									</div>
+									<div className="flex flex-row gap-2">
+										{message.experimental_attachments?.map((attachment) =>
+											attachment.contentType?.startsWith("image") ? (
+												<img
+													className="rounded-md w-40 mb-3"
+													key={attachment.name}
+													src={attachment.url}
+													alt={attachment.name}
+												/>
+											) : attachment.contentType?.startsWith("text") ? (
+												<div
+													key={attachment.url}
+													className="text-xs w-40 h-24 overflow-hidden text-zinc-400 border p-2 rounded-md dark:bg-zinc-800 dark:border-zinc-700 mb-3"
+												>
+													{getTextFromDataUrl(attachment.url)}
+												</div>
+											) : null,
+										)}
+									</div>
+								</div>
+							</motion.div>
+						))}
+
+						{isLoading &&
+							messages[messages.length - 1].role !== "assistant" && (
+								<div className="flex flex-row gap-2 px-4 w-full md:w-[500px] md:px-0">
+									<div className="size-[24px] flex flex-col justify-center items-center flex-shrink-0 text-zinc-400">
+										<BotIcon />
+									</div>
+									<div className="flex flex-col gap-1 text-zinc-400">
+										<div>hmm...</div>
+									</div>
+								</div>
+							)}
+
+						<div ref={messagesEndRef} />
+					</div>
+				) : (
+					<motion.div className="h-[350px] px-4 w-full md:w-[500px] md:px-0 pt-20">
+						<div className="border rounded-lg p-6 flex flex-col gap-4 text-zinc-500 text-sm dark:text-zinc-400 dark:border-zinc-700">
+							<p className="flex flex-row justify-center gap-4 items-center text-zinc-900 dark:text-zinc-50">
+								<AttachmentIcon />
+								Textbook Chat!
+							</p>
+							<p>Upload your textbook and get chatting with it!</p>
+						</div>
+					</motion.div>
+				)}
+
+				<form
+					className="flex flex-col gap-2 relative items-center"
+					onSubmit={(event) => {
+						const options = files ? { experimental_attachments: files } : {};
+						handleSubmit(event, options);
+						setFiles(null);
+					}}
+				>
+					<AnimatePresence>
+						{files && files.length > 0 && (
+							<div className="flex flex-row gap-2 absolute bottom-12 px-4 w-full md:w-[500px] md:px-0">
+								{Array.from(files).map((file) =>
+									file.type.startsWith("image") ? (
+										<div key={file.name}>
+											<motion.img
+												src={URL.createObjectURL(file)}
+												alt={file.name}
+												className="rounded-md w-16"
+												initial={{ scale: 0.8, opacity: 0 }}
+												animate={{ scale: 1, opacity: 1 }}
+												exit={{
+													y: -10,
+													scale: 1.1,
+													opacity: 0,
+													transition: { duration: 0.2 },
+												}}
+											/>
+										</div>
+									) : file.type.startsWith("text") ? (
+										<motion.div
+											key={file.name}
+											className="text-[8px] leading-1 w-28 h-16 overflow-hidden text-zinc-500 border p-2 rounded-lg bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-400"
+											initial={{ scale: 0.8, opacity: 0 }}
+											animate={{ scale: 1, opacity: 1 }}
+											exit={{
+												y: -10,
+												scale: 1.1,
+												opacity: 0,
+												transition: { duration: 0.2 },
+											}}
+										>
+											<TextFilePreview file={file} />
+										</motion.div>
+									) : null,
+								)}
+							</div>
+						)}
+					</AnimatePresence>
+
+					<input
+						ref={inputRef}
+						className="bg-zinc-100 rounded-md px-2 py-1.5 w-full outline-none dark:bg-zinc-700 text-zinc-800 dark:text-zinc-300 md:max-w-[500px] max-w-[calc(100dvw-32px)]"
+						placeholder="Send a message..."
+						value={input}
+						onChange={handleInputChange}
+						onPaste={handlePaste}
+					/>
+				</form>
+			</div>
+		</div>
+	);
 }
