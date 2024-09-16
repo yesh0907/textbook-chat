@@ -39,7 +39,13 @@ export default function Home() {
 				toast.error("You've been rate limited, please try again later!"),
 		});
 
-  // add files
+	const attachments = [
+		{
+			name: "resume.pdf",
+			contentType: "application/pdf",
+			url: "https://yeshc.me/resume.pdf",
+		},
+	];
 
 	const [files, setFiles] = useState<FileList | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -211,8 +217,10 @@ export default function Home() {
 				<form
 					className="flex flex-col gap-2 relative items-center"
 					onSubmit={(event) => {
-						const options = files ? { experimental_attachments: files } : {};
-						handleSubmit(event, options);
+						// const options = files ? { experimental_attachments: files } : {};
+						handleSubmit(event, {
+							experimental_attachments: attachments,
+						});
 						setFiles(null);
 					}}
 				>
