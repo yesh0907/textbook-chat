@@ -37,6 +37,7 @@ export default function Home() {
 		useChat({
 			onError: () =>
 				toast.error("You've been rate limited, please try again later!"),
+			maxSteps: 3,
 		});
 
 	const attachments = [
@@ -163,7 +164,13 @@ export default function Home() {
 
 								<div className="flex flex-col gap-1">
 									<div className="text-zinc-800 dark:text-zinc-300 flex flex-col gap-4">
-										<Markdown>{message.content}</Markdown>
+										{message.content.length > 0 ? (
+											<Markdown>{message.content}</Markdown>
+										) : (
+											<span className="italic font-light">
+												{`calling tool: ${message?.toolInvocations?.[0].toolName}`}
+											</span>
+										)}
 									</div>
 									<div className="flex flex-row gap-2">
 										{message.experimental_attachments?.map((attachment) =>
@@ -217,10 +224,11 @@ export default function Home() {
 				<form
 					className="flex flex-col gap-2 relative items-center"
 					onSubmit={(event) => {
+						handleSubmit(event);
 						// const options = files ? { experimental_attachments: files } : {};
-						handleSubmit(event, {
-							experimental_attachments: attachments,
-						});
+						// handleSubmit(event, {
+						// 	experimental_attachments: attachments,
+						// });
 						setFiles(null);
 					}}
 				>
